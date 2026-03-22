@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🕷️ Web Scraper</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:monospace;background:#0f1117;color:#e2e8f0;min-height:100vh;padding:16px}
+h1{font-size:18px;color:#7dd3fc;margin-bottom:16px}
+h1 span{font-size:11px;color:#475569;margin-left:8px}
+.card{background:#1e293b;border:1px solid #334155;border-radius:8px;padding:14px;margin-bottom:12px}
+input,select{background:#0f1117;border:1px solid #334155;border-radius:6px;color:#e2e8f0;padding:8px 12px;font-size:13px;font-family:monospace;outline:none;width:100%}
+input:focus{border-color:#2563eb}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+button{border:none;border-radius:6px;color:#fff;cursor:pointer;font-size:12px;font-weight:600;padding:8px 16px;font-family:monospace;white-space:nowrap}
+.btn-blue{background:#2563eb}.btn-green{background:#15803d}.btn-gray{background:#334155}.btn-purple{background:#7c3aed}
+.btn-amber{background:#b45309}.btn-rose{background:#be123c}
+button:disabled{background:#334155;cursor:not-allowed}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px}
+.tab{padding:5px 12px;border-radius:20px;border:none;cursor:pointer;font-size:11px;font-weight:600;font-family:monospace;background:#1e293b;color:#94a3b8}
+.tab.active{background:#2563eb;color:#fff}
+.panel{display:none}.panel.active{display:block}
+.small{font-size:11px;color:#64748b}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+.stat{background:#0f1117;border-radius:6px;padding:8px;text-align:center}
+.stat .val{font-size:18px;font-weight:700;color:#7dd3fc}
+.stat .lbl{font-size:10px;color:#64748b}
+.list-item{padding:6px 0;border-bottom:1px solid #0f1117;font-size:11px}
+.list-item .href{color:#38bdf8;word-break:break-all}
+.img-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.img-card{background:#0f1117;border-radius:6px;padding:8px}
+.img-card img{width:100%;height:80px;object-fit:cover;border-radius:4px;margin-bottom:4px}
+.img-card .alt{font-size:10px;color:#64748b;word-break:break-all}
+.scroll{max-height:360px;overflow-y:auto}
+pre{font-size:10px;color:#94a3b8;white-space:pre-wrap;word-break:break-all;max-height:340px;overflow-y:auto}
+table.data{border-collapse:collapse;font-size:11px;width:100%}
+table.data td{padding:4px 8px;border:1px solid #334155}
+table.data tr:first-child td{color:#7dd3fc;background:#0f1117}
+table.data tr:nth-child(even):not(:first-child) td{background:#1a2332}
+.contact-item{padding:5px 8px;background:#0f1117;border-radius:5px;margin-bottom:4px;font-size:12px;display:flex;justify-content:space-between;align-items:center}
+.sel-item{background:#0f1117;border-radius:6px;padding:8px;margin-bottom:6px;font-size:11px}
+.sel-tag{color:#7dd3fc;margin-bottom:3px}
+.sel-html{color:#475569;font-size:10px;word-break:break-all}
+.err{background:#7f1d1d;border-radius:7px;padding:10px 14px;font-size:12px;color:#fca5a5;margin-bottom:12px}
+.meta-row{display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid #0f1117}
+.meta-row .lbl{font-size:10px;color:#64748b;min-width:90px}
+.meta-row .val{font-size:12px;flex:1}
+.copy-btn{background:none;border:none;color:#64748b;cursor:pointer;font-size:12px;padding:0}
+.heading-item{padding:5px 0;border-bottom:1px solid #0f1117}
+#screenshot img{max-width:100%;border-radius:8px;border:1px solid #334155}
+.empty{color:#475569;font-size:12px;text-align:center;padding:40px 0}
+.empty .icon{font-size:40px;margin-bottom:12px}
+#spinner{text-align:center;padding:40px;color:#7dd3fc;display:none}
+/* Floating best-JSON button */
+#fab{position:fixed;bottom:24px;right:16px;z-index:999;display:none;
+  background:linear-gradient(135deg,#b45309,#d97706);
+  border:none;border-radius:14px;color:#fff;cursor:grab;
+  font-size:13px;font-weight:700;font-family:monospace;
+  padding:12px 18px;box-shadow:0 4px 20px #0008;
+  user-select:none;touch-action:none;transition:opacity .2s}
+#fab:active{cursor:grabbing;opacity:.85}
+#fab .badge{background:#fff2;border-radius:8px;padding:1px 7px;font-size:10px;margin-left:6px;vertical-align:middle}
+/* History bar */
+#histBar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.hist-chip{background:#1e293b;border:1px solid #334155;border-radius:20px;
+  padding:3px 10px;font-size:10px;color:#94a3b8;cursor:pointer;display:flex;gap:5px;align-items:center}
+.hist-chip:hover{border-color:#7dd3fc;color:#7dd3fc}
+.hist-chip .x{color:#475569;font-size:11px}
+/* Auto result card */
+.auto-card{margin-bottom:12px;border-radius:8px;overflow:hidden}
+.auto-card.top{border:1px solid #b45309}.auto-card.other{border:1px solid #334155}
+.auto-head{padding:8px 12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px}
+.auto-card.top .auto-head{background:#78350f}
+.auto-card.other .auto-head{background:#1e293b}
+.ts-tag{font-size:9px;color:#94a3b8;background:#0f1117;padding:2px 6px;border-radius:10px}
+/* Toast */
+#toast{position:fixed;bottom:80px;right:16px;background:#15803d;color:#fff;
+  border-radius:8px;padding:8px 14px;font-size:12px;font-family:monospace;
+  z-index:1000;display:none;box-shadow:0 2px 12px #0006}
+</style>
+</head>
+<body>
+
+<h1>🕷️ Web Scraper <span>Flask + Playwright</span></h1>
+
+<!-- History -->
+<div id="histBar"></div>
+
+<!-- Config -->
+<div class="card">
+  <div class="small" style="margin-bottom:6px">⚙️ Backend</div>
+  <div class="row">
+    <input id="apiBase" value="http://localhost:5055" style="flex:1;max-width:260px">
+    <label style="font-size:11px;color:#94a3b8;display:flex;align-items:center;gap:5px;cursor:pointer">
+      <input type="checkbox" id="jsWait" checked> Attendre JS
+    </label>
+    <button class="btn-gray" onclick="ping()">Ping</button>
+  </div>
+</div>
+
+<!-- URL -->
+<div class="row" style="margin-bottom:14px">
+  <input id="urlInput" placeholder="https://example.com" style="flex:1" onkeydown="if(event.key==='Enter')scrape()">
+  <button class="btn-blue" id="btnScrape" onclick="scrape()">🕷 Scraper</button>
+  <button class="btn-green" id="btnExport" onclick="exportJSON()" style="display:none">⬇ JSON</button>
+</div>
+
+<div id="errBox" class="err" style="display:none"></div>
+<div id="spinner"><div style="font-size:28px">⟳</div><div style="font-size:12px;margin-top:8px">Playwright en cours… 5–15s</div></div>
+
+<!-- Selector -->
+<div class="card" id="selectorCard" style="display:none">
+  <div class="small" style="margin-bottom:6px">🔍 Sélecteur CSS</div>
+  <div class="row">
+    <input id="selectorInput" placeholder=".price, table tr, h2, #main a" style="flex:1" onkeydown="if(event.key==='Enter')runSelector()">
+    <button class="btn-purple" onclick="runSelector()">Extraire</button>
+    <button class="btn-gray" onclick="detectClasses()" id="btnDetect" style="display:none">🔍 Détecter</button>
+    <button class="btn-amber" id="btnAuto" onclick="autoScrape()" style="display:none">⚡ Auto JSON</button>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs" id="tabs" style="display:none">
+  <button class="tab active" onclick="switchTab('resume',this)">Résumé</button>
+  <button class="tab" onclick="switchTab('screenshot',this)">Screenshot</button>
+  <button class="tab" onclick="switchTab('links',this)">Liens</button>
+  <button class="tab" onclick="switchTab('images',this)">Images</button>
+  <button class="tab" onclick="switchTab('headings',this)">Titres</button>
+  <button class="tab" onclick="switchTab('text',this)">Texte</button>
+  <button class="tab" onclick="switchTab('tables',this)">Tableaux</button>
+  <button class="tab" onclick="switchTab('contacts',this)">Contacts</button>
+  <button class="tab" onclick="switchTab('selector',this)" id="tabSelector">Sélecteur</button>
+  <button class="tab" onclick="switchTab('detect',this)" id="tabDetect">🔍 Classes</button>
+  <button class="tab" onclick="switchTab('auto',this)" id="tabAuto">⚡ Auto JSON</button>
+  <button class="tab" onclick="switchTab('raw',this)">Brut</button>
+</div>
+
+<!-- Panels -->
+<div class="card" id="panels" style="display:none">
+  <div id="panel-resume" class="panel active"></div>
+  <div id="panel-screenshot" class="panel"></div>
+  <div id="panel-links" class="panel"></div>
+  <div id="panel-images" class="panel"></div>
+  <div id="panel-headings" class="panel"></div>
+  <div id="panel-text" class="panel"></div>
+  <div id="panel-tables" class="panel"></div>
+  <div id="panel-contacts" class="panel"></div>
+  <div id="panel-selector" class="panel"></div>
+  <div id="panel-detect" class="panel"></div>
+  <div id="panel-auto" class="panel"></div>
+  <div id="panel-raw" class="panel"></div>
+</div>
+
+<div class="empty" id="emptyState">
+  <div class="icon">🌐</div>
+  <div>Lance le backend : <code style="color:#7dd3fc">bash install_and_run.sh</code></div>
+  <div style="font-size:11px;margin-top:8px;color:#334155">puis entre une URL et clique Scraper</div>
+</div>
+
+<!-- FAB draggable -->
+<button id="fab" onclick="exportBestJSON()">
+  ⚡ Meilleur JSON <span class="badge" id="fabBadge">—</span>
+</button>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+let G = {};
+let _autoResults = [];
+let _scrapeTs = null;
+let _history = JSON.parse(localStorage.getItem('scraper_hist')||'[]');
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const ts=()=>new Date().toISOString().replace('T',' ').slice(0,19);
+const tsShort=()=>new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+
+function toast(msg,color='#15803d'){
+  const t=$('toast'); t.textContent=msg; t.style.background=color; t.style.display='block';
+  clearTimeout(t._tid); t._tid=setTimeout(()=>t.style.display='none',2500);
+}
+function err(msg){$('errBox').textContent='⚠️ '+msg;$('errBox').style.display='block';}
+function clearErr(){$('errBox').style.display='none';}
+function copyText(txt,btn){
+  navigator.clipboard.writeText(txt);
+  const old=btn.textContent; btn.textContent='✓'; btn.style.color='#4ade80';
+  setTimeout(()=>{btn.textContent=old;btn.style.color='#64748b';},1500);
+}
+function switchTab(name,el){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active'); $('panel-'+name).classList.add('active');
+}
+
+// ── History ──────────────────────────────────────────────────────────────────
+function addHistory(url){
+  _history=_history.filter(u=>u!==url);
+  _history.unshift(url);
+  if(_history.length>6) _history=_history.slice(0,6);
+  localStorage.setItem('scraper_hist',JSON.stringify(_history));
+  renderHistory();
+}
+function renderHistory(){
+  const bar=$('histBar');
+  bar.innerHTML=_history.map(u=>`
+    <div class="hist-chip" onclick="loadHist('${esc(u)}')">
+      <span>${esc(u.replace(/^https?:\/\//,'').slice(0,28))}</span>
+      <span class="x" onclick="removeHist(event,'${esc(u)}')">✕</span>
+    </div>`).join('');
+}
+function loadHist(url){$('urlInput').value=url;}
+function removeHist(e,url){
+  e.stopPropagation();
+  _history=_history.filter(u=>u!==url);
+  localStorage.setItem('scraper_hist',JSON.stringify(_history));
+  renderHistory();
+}
+renderHistory();
+
+// ── FAB drag ─────────────────────────────────────────────────────────────────
+(function(){
+  const fab=$('fab'); let dx=0,dy=0,sx=0,sy=0,dragging=false,moved=false;
+  function onDown(e){
+    dragging=true; moved=false;
+    const p=e.touches?e.touches[0]:e;
+    sx=p.clientX-fab.getBoundingClientRect().left;
+    sy=p.clientY-fab.getBoundingClientRect().top;
+    fab.style.transition='none';
+    e.preventDefault();
+  }
+  function onMove(e){
+    if(!dragging) return; moved=true;
+    const p=e.touches?e.touches[0]:e;
+    let x=p.clientX-sx, y=p.clientY-sy;
+    x=Math.max(0,Math.min(window.innerWidth-fab.offsetWidth,x));
+    y=Math.max(0,Math.min(window.innerHeight-fab.offsetHeight,y));
+    fab.style.left=x+'px'; fab.style.top=y+'px';
+    fab.style.right='auto'; fab.style.bottom='auto';
+    e.preventDefault();
+  }
+  function onUp(){
+    dragging=false;
+    if(moved){fab.onclick=null; setTimeout(()=>fab.onclick=exportBestJSON,50);}
+  }
+  fab.addEventListener('mousedown',onDown);
+  fab.addEventListener('touchstart',onDown,{passive:false});
+  document.addEventListener('mousemove',onMove);
+  document.addEventListener('touchmove',onMove,{passive:false});
+  document.addEventListener('mouseup',onUp);
+  document.addEventListener('touchend',onUp);
+})();
+
+// ── Ping ─────────────────────────────────────────────────────────────────────
+async function ping(){
+  const base=$('apiBase').value;
+  try{const r=await fetch(base+'/health');const j=await r.json();alert('✅ Backend OK — port '+j.port);}
+  catch{alert('❌ Backend injoignable à '+base);}
+}
+
+// ── Scrape ───────────────────────────────────────────────────────────────────
+async function scrape(){
+  clearErr();
+  let url=$('urlInput').value.trim();
+  if(!url){err('URL manquante');return;}
+  if(!/^https?:\/\//i.test(url)) url='https://'+url;
+
+  $('btnScrape').disabled=true;
+  $('spinner').style.display='block';
+  $('emptyState').style.display='none';
+  $('tabs').style.display='none';
+  $('panels').style.display='none';
+  $('selectorCard').style.display='none';
+  $('btnExport').style.display='none';
+  $('fab').style.display='none';
+  _autoResults=[];
+
+  try{
+    const res=await fetch($('apiBase').value+'/scrape',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({url,js_wait:$('jsWait').checked})
+    });
+    const data=await res.json();
+    if(data.error){err(data.error);return;}
+    G=data; G.url=url; _scrapeTs=ts();
+    addHistory(url);
+    renderAll();
+    $('tabs').style.display='flex';
+    $('panels').style.display='block';
+    $('selectorCard').style.display='block';
+    $('btnExport').style.display='';
+    $('btnDetect').style.display='';
+    $('btnAuto').style.display='';
+    switchTab('resume',document.querySelector('.tab'));
+    // auto-run Auto JSON
+    await autoScrape(true);
+  }catch(e){
+    err('Backend injoignable — '+$('apiBase').value);
+  }finally{
+    $('btnScrape').disabled=false;
+    $('spinner').style.display='none';
+  }
+}
+
+// ── Auto JSON ─────────────────────────────────────────────────────────────────
+async function autoScrape(silent=false){
+  if(!G.rawHtml){alert('Lance un scrape d\'abord');return;}
+  const btn=$('btnAuto');
+  const prevTxt=btn.textContent;
+  btn.textContent='⏳'; btn.disabled=true;
+  if(!silent){
+    $('panel-auto').innerHTML='<div style="color:#7dd3fc;padding:20px;text-align:center">⚡ Analyse en cours…</div>';
+    switchTab('auto',$('tabAuto'));
+  }
+  try{
+    const res=await fetch($('apiBase').value+'/autoscrape',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({html:G.rawHtml,base_url:G.url,min_count:2})
+    });
+    if(!res.ok){
+      if(!silent) $('panel-auto').innerHTML='<div class="small">Erreur HTTP '+res.status+'</div>';
+      return;
+    }
+    const json=await res.json();
+    _autoResults=json.results||[];
+    renderAuto(json);
+    updateFAB();
+  }catch(e){
+    if(!silent) $('panel-auto').innerHTML='<div class="small">Erreur: '+e.message+'</div>';
+  }finally{
+    btn.textContent=prevTxt; btn.disabled=false;
+  }
+}
+
+function updateFAB(){
+  const fab=$('fab');
+  if(!_autoResults.length){fab.style.display='none';return;}
+  const best=_autoResults[0];
+  $('fabBadge').textContent=best.selector.slice(0,20)+(best.selector.length>20?'…':'');
+  fab.style.display='block';
+}
+
+function exportBestJSON(){
+  if(!_autoResults.length){toast('Lance Auto JSON d\'abord','#b45309');return;}
+  const best=_autoResults[0];
+  const payload={
+    _meta:{url:G.url,selector:best.selector,score:best.avg_score,count:best.count,scraped_at:_scrapeTs,exported_at:ts()},
+    items:best.items
+  };
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  const slug=(G.url||'scrape').replace(/^https?:\/\//,'').replace(/[^a-z0-9]/gi,'_').slice(0,30);
+  a.download=`best_${slug}_${_scrapeTs.replace(/[\s:]/g,'-')}.json`;
+  a.click();
+  toast('✅ Meilleur JSON exporté — '+best.count+' items');
+}
+
+// ── Render panels ─────────────────────────────────────────────────────────────
+function renderAll(){
+  renderResume(); renderScreenshot(); renderLinks(); renderImages();
+  renderHeadings(); renderText(); renderTables(); renderContacts(); renderRaw();
+}
+
+function renderResume(){
+  const d=G;
+  $('panel-resume').innerHTML=`
+    <div class="meta-row"><span class="lbl">Scraped at</span><span class="val" style="color:#fcd34d">${_scrapeTs}</span></div>
+    <div class="meta-row"><span class="lbl">URL</span><span class="val" style="color:#38bdf8;word-break:break-all">${esc(d.url||'')}</span></div>
+    <div class="meta-row"><span class="lbl">Titre</span><span class="val">${esc(d.title||'')}</span>
+      <button class="copy-btn" onclick="copyText(${JSON.stringify(d.title||'')},this)">⎘</button></div>
+    <div class="meta-row"><span class="lbl">Description</span><span class="val">${esc(d.metaDesc||'—')}</span>
+      <button class="copy-btn" onclick="copyText(${JSON.stringify(d.metaDesc||'')},this)">⎘</button></div>
+    <div class="stats">
+      ${[['Liens',(d.links||[]).length],['Images',(d.images||[]).length],['Titres',(d.headings||[]).length],
+         ['Tables',(d.tables||[]).length],['Emails',(d.emails||[]).length],['Tél.',(d.phones||[]).length],
+         ['Paragraphes',(d.paragraphs||[]).length],['HTML',Math.round((d.rawHtml||'').length/1024)+'kb']]
+        .map(([k,v])=>`<div class="stat"><div class="val">${v}</div><div class="lbl">${k}</div></div>`).join('')}
+    </div>`;
+}
+
+function renderScreenshot(){
+  $('panel-screenshot').innerHTML=G.screenshot
+    ?`<div id="screenshot"><img src="${G.screenshot}" alt="screenshot"></div>`
+    :`<div class="small">Pas de screenshot.</div>`;
+}
+function renderLinks(){
+  const links=G.links||[];
+  $('panel-links').innerHTML=`
+    <div class="row" style="margin-bottom:8px">
+      <input id="linkFilter" placeholder="Filtrer liens…" oninput="renderLinks()"
+        style="flex:1;background:#0f1117;border:1px solid #334155;border-radius:6px;color:#e2e8f0;padding:6px 10px;font-size:11px;font-family:monospace">
+      <span class="small" style="white-space:nowrap">${links.length}</span>
+      <button class="btn-green" style="padding:3px 10px" onclick="exportCSV(G.links,'liens')">⬇ CSV</button>
+    </div>
+    <div class="scroll">${links.map(l=>`
+      <div class="list-item"><div>${esc(l.text||'(sans texte)')}</div>
+      <div class="href">${esc(l.href)}</div></div>`).join('')}</div>`;
+}
+function renderImages(){
+  const imgs=G.images||[];
+  $('panel-images').innerHTML=`
+    <div class="row" style="margin-bottom:8px"><span class="small">${imgs.length} images</span>
+      <button class="btn-green" style="padding:3px 10px" onclick="exportCSV(G.images,'images')">⬇ CSV</button></div>
+    <div class="scroll img-grid">${imgs.map(img=>`
+      <div class="img-card"><img src="${esc(img.src)}" alt="${esc(img.alt)}" onerror="this.style.display='none'">
+      <div class="alt">${esc(img.alt||img.src.split('/').pop())}</div></div>`).join('')}</div>`;
+}
+function renderHeadings(){
+  const hs=G.headings||[];
+  const sizes={H1:16,H2:14,H3:13,H4:12,H5:11,H6:10};
+  const indents={H1:0,H2:12,H3:22,H4:30,H5:36,H6:40};
+  const colors={H1:'#7dd3fc',H2:'#93c5fd',H3:'#cbd5e1',H4:'#94a3b8',H5:'#64748b',H6:'#475569'};
+  $('panel-headings').innerHTML=`<div class="scroll">${hs.map(h=>`
+    <div class="heading-item" style="padding-left:${indents[h.level]||0}px;font-size:${sizes[h.level]||11}px;color:${colors[h.level]||'#e2e8f0'}">
+      <span style="font-size:9px;color:#475569;margin-right:6px">${h.level}</span>${esc(h.text)}</div>`).join('')}</div>`;
+}
+function renderText(){
+  const ps=G.paragraphs||[];
+  $('panel-text').innerHTML=`<div class="scroll">${ps.map(p=>`
+    <div style="padding:7px 0;border-bottom:1px solid #0f1117;font-size:12px;line-height:1.6;color:#cbd5e1">${esc(p)}</div>`).join('')}</div>`;
+}
+function renderTables(){
+  const tbls=G.tables||[];
+  if(!tbls.length){$('panel-tables').innerHTML='<div class="small">Aucun tableau.</div>';return;}
+  $('panel-tables').innerHTML=`<div class="scroll">${tbls.map(tbl=>`
+    <div style="margin-bottom:16px"><div class="small" style="margin-bottom:6px">Tableau ${tbl.index} (${tbl.rows.length} lignes)</div>
+    <div style="overflow-x:auto"><table class="data">${tbl.rows.map(row=>`
+      <tr>${row.map(cell=>`<td>${esc(cell)}</td>`).join('')}</tr>`).join('')}</table></div></div>`).join('')}</div>`;
+}
+function renderContacts(){
+  const emails=G.emails||[],phones=G.phones||[];
+  $('panel-contacts').innerHTML=`
+    <div style="margin-bottom:14px"><div class="small" style="margin-bottom:6px">📧 Emails (${emails.length})</div>
+      ${!emails.length?'<div class="small">Aucun.</div>':emails.map(e=>`
+        <div class="contact-item" style="color:#38bdf8">${esc(e)}
+          <button class="copy-btn" onclick="copyText('${e.replace(/'/g,"\\'")}',this)">⎘</button></div>`).join('')}</div>
+    <div><div class="small" style="margin-bottom:6px">📞 Téléphones (${phones.length})</div>
+      ${!phones.length?'<div class="small">Aucun.</div>':phones.map(p=>`
+        <div class="contact-item" style="color:#a3e635">${esc(p)}
+          <button class="copy-btn" onclick="copyText('${p.replace(/'/g,"\\'")}',this)">⎘</button></div>`).join('')}</div>`;
+}
+function renderSelector(results,sel){
+  $('panel-selector').innerHTML=`
+    <div class="small" style="margin-bottom:8px">${results.length} élément(s) pour <code style="color:#a78bfa">${esc(sel)}</code></div>
+    <div class="scroll">${results.map(r=>`
+      <div class="sel-item">
+        <div class="sel-tag">&lt;${r.tag}&gt; ${esc(Object.entries(r.attrs||{}).slice(0,3).map(([k,v])=>`${k}="${v}"`).join(' '))}</div>
+        <div style="color:#e2e8f0;margin-bottom:3px">${esc(r.text)}</div>
+        <div class="sel-html">${esc((r.html||'').slice(0,200))}</div>
+      </div>`).join('')}</div>`;
+}
+function renderRaw(){
+  const html=G.rawHtml||'';
+  $('panel-raw').innerHTML=`
+    <div class="row" style="margin-bottom:8px"><span class="small">${html.length.toLocaleString()} caractères</span>
+      <button class="btn-gray" style="padding:3px 10px" onclick="copyText(G.rawHtml,this)">⎘ Copier</button></div>
+    <pre>${esc(html.slice(0,30000))}${html.length>30000?'\n… (tronqué)':''}</pre>`;
+}
+
+// ── Auto JSON render ──────────────────────────────────────────────────────────
+function renderAuto(data){
+  const results=data.results||[];
+  if(!results.length){$('panel-auto').innerHTML='<div class="small">Aucun sélecteur pertinent trouvé.</div>';return;}
+
+  let html=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+    <span class="small">${data.total_candidates} candidats — top ${results.length} · scraped <span style="color:#fcd34d">${_scrapeTs}</span></span>
+    <button onclick="exportBestJSON()" style="padding:5px 14px;background:linear-gradient(135deg,#b45309,#d97706);border:none;border-radius:7px;color:#fff;cursor:pointer;font-size:12px;font-weight:700">
+      ⚡ Exporter meilleur JSON</button>
+  </div>`;
+
+  results.forEach((r,ri)=>{
+    const isTop=ri===0;
+    const cls=isTop?'auto-card top':'auto-card other';
+    html+=`<div class="${cls}">
+      <div class="auto-head">
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <code style="color:${isTop?'#fcd34d':'#a78bfa'};font-size:12px">${esc(r.selector)}</code>
+          <span class="ts-tag">scraped ${_scrapeTs}</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span style="font-size:10px;color:#94a3b8">${r.count} items · score ${r.avg_score}</span>
+          <button onclick="injectSelector('${r.selector.replace(/'/g,"\\'")}');switchTab('selector',document.querySelector('[onclick*=selector]'))"
+            style="padding:3px 10px;background:#7c3aed;border:none;border-radius:5px;color:#fff;cursor:pointer;font-size:11px">→ CSS</button>
+          <button onclick="downloadAutoJSON(${ri})"
+            style="padding:3px 10px;background:#15803d;border:none;border-radius:5px;color:#fff;cursor:pointer;font-size:11px">⬇ JSON</button>
+          ${isTop?`<button onclick="exportBestJSON()"
+            style="padding:3px 10px;background:linear-gradient(135deg,#b45309,#d97706);border:none;border-radius:5px;color:#fff;cursor:pointer;font-size:11px;font-weight:700">⚡ BEST</button>`:''}
+        </div>
+      </div>
+      <div style="padding:8px;max-height:200px;overflow-y:auto">
+        ${r.items.slice(0,3).map(item=>`
+          <div style="background:#0f1117;border-radius:6px;padding:8px;margin-bottom:6px;font-size:11px">
+            <div style="color:#e2e8f0;margin-bottom:3px">${esc(item.text.slice(0,200))}</div>
+            ${item.prices.length?`<div style="color:#4ade80">💰 ${item.prices.join(' · ')}</div>`:''}
+            ${item.links.length?`<div style="color:#38bdf8">🔗 ${esc(item.links[0].href)}</div>`:''}
+            ${Object.keys(item.fields||{}).length?`<div style="color:#94a3b8;font-size:10px">${Object.entries(item.fields).map(([k,v])=>`<b>${k}</b>:${esc(v)}`).join(' · ')}</div>`:''}
+          </div>`).join('')}
+        ${r.items.length>3?`<div class="small">… +${r.items.length-3} éléments</div>`:''}
+      </div>
+    </div>`;
+  });
+
+  $('panel-auto').innerHTML=html;
+}
+
+// ── Detect / Selector ─────────────────────────────────────────────────────────
+async function detectClasses(){
+  if(!G.rawHtml){alert('Lance un scrape d\'abord');return;}
+  const btn=$('btnDetect'); btn.textContent='⏳'; btn.disabled=true;
+  try{
+    const res=await fetch($('apiBase').value+'/detect',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({html:G.rawHtml})
+    });
+    if(!res.ok){alert('Erreur HTTP '+res.status);return;}
+    const json=await res.json();
+    renderDetect(json.candidates||[]);
+    switchTab('detect',$('tabDetect'));
+  }catch(e){alert('Erreur: '+e.message);}
+  finally{btn.textContent='🔍 Détecter';btn.disabled=false;}
+}
+
+function renderDetect(candidates){
+  if(!candidates.length){$('panel-detect').innerHTML='<div class="small">Aucune classe répétée.</div>';return;}
+  $('panel-detect').innerHTML=`
+    <div class="small" style="margin-bottom:10px">${candidates.length} sélecteurs — clique pour injecter</div>
+    <div class="scroll">${candidates.map(c=>`
+      <div onclick="injectSelector('${c.selector.replace(/'/g,"\'")}')"
+           style="padding:8px;background:#0f1117;border-radius:6px;margin-bottom:6px;cursor:pointer;border:1px solid #334155"
+           onmouseover="this.style.borderColor='#7c3aed'" onmouseout="this.style.borderColor='#334155'">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+          <code style="color:#a78bfa;font-size:12px">${esc(c.selector)}</code>
+          <span style="font-size:10px;color:#64748b;background:#1e293b;padding:2px 7px;border-radius:10px">${c.count}x</span>
+        </div>
+        <div style="font-size:10px;color:#475569;word-break:break-all">${esc((c.sample||'').slice(0,200))}</div>
+      </div>`).join('')}</div>`;
+}
+
+function injectSelector(sel){
+  $('selectorInput').value=sel; $('selectorInput').focus();
+  $('selectorInput').style.borderColor='#a78bfa';
+  setTimeout(()=>$('selectorInput').style.borderColor='',1000);
+}
+
+async function runSelector(){
+  const sel=$('selectorInput').value.trim();
+  if(!sel||!G.rawHtml) return;
+  try{
+    const res=await fetch($('apiBase').value+'/selector',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({html:G.rawHtml,base_url:G.url,selector:sel})
+    });
+    const json=await res.json();
+    renderSelector(json.results||[],sel);
+    switchTab('selector',$('tabSelector'));
+  }catch{}
+}
+
+// ── Export ────────────────────────────────────────────────────────────────────
+function exportJSON(){
+  const {rawHtml,screenshot,...clean}=G;
+  clean._scraped_at=_scrapeTs;
+  const blob=new Blob([JSON.stringify(clean,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='scrape_'+(_scrapeTs||ts()).replace(/[\s:]/g,'-')+'.json'; a.click();
+}
+
+function exportCSV(rows,name){
+  const csv=rows.map(r=>Object.values(r).map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=name+'_'+(_scrapeTs||ts()).replace(/[\s:]/g,'-')+'.csv'; a.click();
+}
+
+function downloadAutoJSON(idx){
+  const r=(_autoResults||[])[idx]; if(!r) return;
+  const payload={
+    _meta:{url:G.url,selector:r.selector,score:r.avg_score,count:r.count,scraped_at:_scrapeTs,exported_at:ts()},
+    items:r.items
+  };
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='auto_'+r.selector.replace(/[^a-z0-9]/gi,'_')+'_'+(_scrapeTs||ts()).replace(/[\s:]/g,'-')+'.json';
+  a.click();
+  toast('✅ JSON exporté — '+r.count+' items');
+}
+</script>
+</body>
+</html>

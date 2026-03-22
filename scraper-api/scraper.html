@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Web Scraper</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:monospace;background:#0f1117;color:#e2e8f0;min-height:100vh;padding:16px}
+h1{font-size:18px;color:#7dd3fc;margin-bottom:16px}
+h1 span{font-size:11px;color:#475569;margin-left:8px}
+.card{background:#1e293b;border:1px solid #334155;border-radius:8px;padding:14px;margin-bottom:12px}
+input,select{background:#0f1117;border:1px solid #334155;border-radius:6px;color:#e2e8f0;padding:8px 12px;font-size:13px;font-family:monospace;outline:none;width:100%}
+input:focus{border-color:#2563eb}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+button{border:none;border-radius:6px;color:#fff;cursor:pointer;font-size:12px;font-weight:600;padding:8px 16px;font-family:monospace;white-space:nowrap}
+.btn-blue{background:#2563eb}.btn-green{background:#15803d}.btn-gray{background:#334155}.btn-purple{background:#7c3aed}.btn-amber{background:#b45309}
+button:disabled{background:#334155;cursor:not-allowed}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px}
+.tab{padding:5px 12px;border-radius:20px;border:none;cursor:pointer;font-size:11px;font-weight:600;font-family:monospace;background:#1e293b;color:#94a3b8}
+.tab.active{background:#2563eb;color:#fff}
+.panel{display:none}.panel.active{display:block}
+.small{font-size:11px;color:#64748b}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+.stat{background:#0f1117;border-radius:6px;padding:8px;text-align:center}
+.stat .val{font-size:18px;font-weight:700;color:#7dd3fc}
+.stat .lbl{font-size:10px;color:#64748b}
+.list-item{padding:6px 0;border-bottom:1px solid #0f1117;font-size:11px}
+.list-item .href{color:#38bdf8;word-break:break-all}
+.img-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.img-card{background:#0f1117;border-radius:6px;padding:8px}
+.scroll{max-height:360px;overflow-y:auto}
+pre{font-size:10px;color:#94a3b8;white-space:pre-wrap;word-break:break-all;max-height:340px;overflow-y:auto}
+table.data{border-collapse:collapse;font-size:11px;width:100%}
+table.data td{padding:4px 8px;border:1px solid #334155}
+table.data tr:first-child td{color:#7dd3fc;background:#0f1117}
+table.data tr:nth-child(even):not(:first-child) td{background:#1a2332}
+.contact-item{padding:5px 8px;background:#0f1117;border-radius:5px;margin-bottom:4px;font-size:12px;display:flex;justify-content:space-between;align-items:center}
+.sel-item{background:#0f1117;border-radius:6px;padding:8px;margin-bottom:6px;font-size:11px}
+.sel-tag{color:#7dd3fc;margin-bottom:3px}
+.sel-html{color:#475569;font-size:10px;word-break:break-all}
+.err{background:#7f1d1d;border-radius:7px;padding:10px 14px;font-size:12px;color:#fca5a5;margin-bottom:12px}
+.meta-row{display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid #0f1117}
+.meta-row .lbl{font-size:10px;color:#64748b;min-width:90px}
+.meta-row .val{font-size:12px;flex:1}
+.copy-btn{background:none;border:none;color:#64748b;cursor:pointer;font-size:12px;padding:0}
+.empty{color:#475569;font-size:12px;text-align:center;padding:40px 0}
+.empty .icon{font-size:40px;margin-bottom:12px}
+#spinner{text-align:center;padding:40px;color:#7dd3fc;display:none}
+#fab{position:fixed;bottom:24px;right:16px;z-index:999;display:none;background:linear-gradient(135deg,#b45309,#d97706);border:none;border-radius:14px;color:#fff;cursor:grab;font-size:13px;font-weight:700;font-family:monospace;padding:12px 18px;box-shadow:0 4px 20px #0008;user-select:none;touch-action:none}
+#fab .badge{background:#fff2;border-radius:8px;padding:1px 7px;font-size:10px;margin-left:6px;vertical-align:middle}
+#histBar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.hist-chip{background:#1e293b;border:1px solid #334155;border-radius:20px;padding:3px 10px;font-size:10px;color:#94a3b8;cursor:pointer;display:flex;gap:5px;align-items:center}
+.hist-chip .x{color:#475569;font-size:11px}
+.auto-card{margin-bottom:12px;border-radius:8px;overflow:hidden}
+.auto-card.top{border:1px solid #b45309}.auto-card.other{border:1px solid #334155}
+.auto-head{padding:8px 12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px}
+.auto-card.top .auto-head{background:#78350f}
+.auto-card.other .auto-head{background:#1e293b}
+.ts-tag{font-size:9px;color:#94a3b8;background:#0f1117;padding:2px 6px;border-radius:10px}
+#toast{position:fixed;bottom:80px;right:16px;background:#15803d;color:#fff;border-radius:8px;padding:8px 14px;font-size:12px;font-family:monospace;z-index:1000;display:none;box-shadow:0 2px 12px #0006}
+#deepModal{display:none;position:fixed;inset:0;background:#0009;z-index:200;overflow-y:auto;padding:16px}
+#deepBox{background:#1e293b;border:1px solid #0e7490;border-radius:12px;padding:18px;max-width:600px;margin:auto}
+#deepBox h2{font-size:14px;color:#7dd3fc;margin-bottom:14px}
+.drow{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.drow label{font-size:10px;color:#64748b;min-width:90px}
+.drow input{flex:1;background:#0f1117;border:1px solid #334155;border-radius:6px;color:#e2e8f0;padding:6px 10px;font-size:12px;font-family:monospace;outline:none}
+.dhint{font-size:9px;color:#475569;padding-left:98px;margin-top:-5px;margin-bottom:4px}
+#deepBarWrap{background:#0f1117;border-radius:4px;overflow:hidden;margin-bottom:6px;height:8px}
+#deepBar{height:8px;background:#0e7490;border-radius:4px;width:0%;transition:width .3s}
+#deepLog{font-size:10px;color:#64748b;max-height:120px;overflow-y:auto;font-family:monospace;background:#0f1117;padding:6px;border-radius:4px;margin-top:6px}
+#deepResults{margin-top:12px;max-height:320px;overflow-y:auto}
+.ditem{background:#0f1117;border-radius:8px;padding:10px;margin-bottom:8px;display:flex;gap:10px}
+.ditem img{width:70px;height:50px;object-fit:cover;border-radius:5px;flex-shrink:0}
+.ditem .dinfo{flex:1;min-width:0}
+.ditem .dtitle{font-size:12px;color:#e2e8f0;font-weight:600;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ditem .dprice{font-size:12px;color:#4ade80;margin-bottom:2px}
+.ditem .ddesc{font-size:10px;color:#64748b;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.ditem .dlink{font-size:10px;color:#38bdf8;word-break:break-all;margin-top:2px}
+</style>
+</head>
+<body>
+<h1>Spider Web Scraper <span>Flask + Playwright</span></h1>
+<div id="histBar"></div>
+<div class="card">
+  <div class="small" style="margin-bottom:6px">Backend</div>
+  <div class="row">
+    <input id="apiBase" value="" placeholder="laisser vide = auto" style="flex:1;max-width:260px">
+    <label style="font-size:11px;color:#94a3b8;display:flex;align-items:center;gap:5px;cursor:pointer">
+      <input type="checkbox" id="jsWait" checked> JS
+    </label>
+    <button class="btn-gray" onclick="ping()">Ping</button>
+  </div>
+</div>
+<div class="row" style="margin-bottom:14px">
+  <input id="urlInput" placeholder="https://example.com" style="flex:1" onkeydown="if(event.key==='Enter')scrape()">
+  <button class="btn-blue" id="btnScrape" onclick="scrape()">Scraper</button>
+  <button class="btn-green" id="btnExport" onclick="exportJSON()" style="display:none">JSON</button>
+</div>
+<div id="errBox" class="err" style="display:none"></div>
+<div id="spinner"><div style="font-size:28px">...</div><div style="font-size:12px;margin-top:8px">Playwright en cours...</div></div>
+<div class="card" id="selectorCard" style="display:none">
+  <div class="small" style="margin-bottom:6px">Selecteur CSS</div>
+  <div class="row">
+    <input id="selectorInput" placeholder=".price, table tr, h2" style="flex:1" onkeydown="if(event.key==='Enter')runSelector()">
+    <button class="btn-purple" onclick="runSelector()">Extraire</button>
+    <button class="btn-gray" onclick="detectClasses()" id="btnDetect" style="display:none">Detecter</button>
+    <button class="btn-amber" id="btnAuto" onclick="autoScrape()" style="display:none">Auto JSON</button>
+    <button style="padding:8px 16px;background:#0e7490;border:none;border-radius:6px;color:#fff;cursor:pointer;font-size:12px;font-weight:600;display:none" id="btnDeep" onclick="showDeepPanel()">Deep</button>
+  </div>
+</div>
+<div class="tabs" id="tabs" style="display:none">
+  <button class="tab active" onclick="switchTab('resume',this)">Resume</button>
+  <button class="tab" onclick="switchTab('screenshot',this)">Screenshot</button>
+  <button class="tab" onclick="switchTab('links',this)">Liens</button>
+  <button class="tab" onclick="switchTab('images',this)">Images</button>
+  <button class="tab" onclick="switchTab('headings',this)">Titres</button>
+  <button class="tab" onclick="switchTab('text',this)">Texte</button>
+  <button class="tab" onclick="switchTab('tables',this)">Tableaux</button>
+  <button class="tab" onclick="switchTab('contacts',this)">Contacts</button>
+  <button class="tab" onclick="switchTab('selector',this)" id="tabSelector">Selecteur</button>
+  <button class="tab" onclick="switchTab('detect',this)" id="tabDetect">Classes</button>
+  <button class="tab" onclick="switchTab('auto',this)" id="tabAuto">Auto JSON</button>
+  <button class="tab" onclick="switchTab('raw',this)">Brut</button>
+</div>
+<div class="card" id="panels" style="display:none">
+  <div id="panel-resume" class="panel active"></div>
+  <div id="panel-screenshot" class="panel"></div>
+  <div id="panel-links" class="panel"></div>
+  <div id="panel-images" class="panel"></div>
+  <div id="panel-headings" class="panel"></div>
+  <div id="panel-text" class="panel"></div>
+  <div id="panel-tables" class="panel"></div>
+  <div id="panel-contacts" class="panel"></div>
+  <div id="panel-selector" class="panel"></div>
+  <div id="panel-detect" class="panel"></div>
+  <div id="panel-auto" class="panel"></div>
+  <div id="panel-raw" class="panel"></div>
+</div>
+<div class="empty" id="emptyState">
+  <div class="icon">Globe</div>
+  <div>Lance le backend puis entre une URL</div>
+</div>
+<button id="fab" onclick="exportBestJSON()">Best JSON <span class="badge" id="fabBadge">-</span></button>
+<div id="toast"></div>
+<div id="deepModal">
+  <div id="deepBox">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <h2>Deep Scrape — Listing + Details</h2>
+      <button onclick="document.getElementById('deepModal').style.display='none'" style="background:none;border:none;color:#64748b;font-size:22px;cursor:pointer">x</button>
+    </div>
+    <div class="drow"><label>URL listing</label><input id="ds_url" placeholder="https://site.com/annonces"></div>
+    <div class="drow"><label>Sel. items</label><input id="ds_items" placeholder="div.odd / article / li.property"></div>
+    <div class="dhint">Selecteur CSS des blocs annonces sur la page listing</div>
+    <div class="drow"><label>Sel. lien</label><input id="ds_links" value="a"></div>
+    <div class="dhint">Selecteur du lien dans chaque bloc</div>
+    <hr style="border-color:#334155;margin:10px 0">
+    <div style="font-size:10px;color:#64748b;margin-bottom:8px">Page detail — vide = auto</div>
+    <div class="drow"><label>Sel. titre</label><input id="ds_title" placeholder="h1 / .titre"></div>
+    <div class="drow"><label>Sel. desc.</label><input id="ds_desc" placeholder=".description"></div>
+    <div class="drow"><label>Sel. prix</label><input id="ds_price" placeholder=".price / .loyer"></div>
+    <div class="drow"><label>Sel. images</label><input id="ds_imgs" placeholder=".slider img"></div>
+    <hr style="border-color:#334155;margin:10px 0">
+    <div class="drow">
+      <label>Max</label><input id="ds_max" type="number" value="20" style="max-width:60px">
+      <label style="min-width:50px">Delai ms</label><input id="ds_delay" type="number" value="1000" style="max-width:70px">
+      <label style="min-width:50px">JS wait</label><input id="ds_js" type="number" value="2000" style="max-width:70px">
+    </div>
+    <div class="drow">
+      <label>same_domain</label>
+      <input type="checkbox" id="ds_same" checked style="width:auto;flex:none">
+      <span style="font-size:10px;color:#64748b">Filtrer hors-domaine</span>
+    </div>
+    <div class="drow"><label>Sauvegarder</label><input id="ds_outfile" placeholder="/workspace/scraper-api/output.json"></div>
+    <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+      <button id="btnRunDeep" onclick="runDeepScrape()" style="padding:9px 20px;background:#0e7490;border:none;border-radius:7px;color:#fff;cursor:pointer;font-size:13px;font-weight:700">Lancer</button>
+      <button id="btnDeepExport" onclick="exportDeepJSON()" style="display:none;padding:9px 16px;background:#15803d;border:none;border-radius:7px;color:#fff;cursor:pointer;font-size:12px">JSON</button>
+      <button id="btnDeepCSV" onclick="exportDeepCSV()" style="display:none;padding:9px 16px;background:#334155;border:none;border-radius:7px;color:#fff;cursor:pointer;font-size:12px">CSV</button>
+      <button id="btnDeepPivot" onclick="exportDeepPivot()" style="display:none;padding:9px 16px;background:#b45309;border:none;border-radius:7px;color:#fff;cursor:pointer;font-size:12px;font-weight:700">Pivot</button>
+    </div>
+    <div id="deepProgress" style="display:none;margin-top:10px">
+      <div id="deepBarWrap"><div id="deepBar"></div></div>
+      <div id="deepLog"></div>
+    </div>
+    <div id="deepResults"></div>
+  </div>
+</div>
+<script src="scraper.js"></script>
+</body>
+</html>
