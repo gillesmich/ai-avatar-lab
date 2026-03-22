@@ -1,0 +1,288 @@
+import { useState } from "react";
+
+const SYSTEM = `Tu es un expert scraping web. On te donne une URL.
+Tu dois utiliser web_search pour analyser la page, puis générer un script Python Playwright complet qui :
+1. Navigue sur l'URL
+2. Extrait TOUTES les données visibles (titres, prix, descriptions, images, liens, tableaux, contacts)
+3. Gère la pagination si détectée
+4. Sauvegarde en JSON (scraper_output.json)
+5. Utilise inner_text("body") + regex — PAS de sélecteurs CSS fragiles
+6. Gère les erreurs par élément avec try/except
+7. Si page liste (catalogue/annonces/produits) : scrape aussi chaque page détail
+8. Timeout networkidle + wait 1000ms + user_agent desktop Chrome
+Réponds UNIQUEMENT avec le code Python, sans texte avant/après, sans backticks.`;
+
+const ANALYZE_SYSTEM = `Tu es un expert analyse de sites web. 
+À partir d'une URL, utilise web_search pour analyser la page et retourne UNIQUEMENT un JSON valide (sans backticks) avec cette structure exacte :
+{
+  "site_name": "nom du site",
+  "page_type": "liste|detail|mixte|autre",
+  "detected_fields": ["champ1", "champ2", ...],
+  "has_pagination": true|false,
+  "has_detail_pages": true|false,
+  "estimated_items": 0,
+  "tech_notes": "notes techniques importantes"
+}`;
+
+export default function App() {
+  const [url, setUrl] = useState("");
+  const [script, setScript] = useState("");
+  const [analysis, setAnalysis] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [phase, setPhase] = useState("idle");
+  const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [activeTab, setActiveTab] = useState("script");
+
+  async function callClaude(system, userMsg, maxTokens = 4000) {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: maxTokens,
+        tools: [{ type: "web_search_20250305", name: "web_search" }],
+        system,
+        messages: [{ role: "user", content: userMsg }]
+      })
+    });
+    const data = await res.json();
+    const texts = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("\n");
+    return texts;
+  }
+
+  async function run() {
+    if (!url.trim()) return;
+    setLoading(true); setError(""); setScript(""); setAnalysis(null);
+    try {
+      // Phase 1 : analyse
+      setPhase("analyzing");
+      const analysisRaw = await callClaude(ANALYZE_SYSTEM,
+        `Analyse cette URL et retourne le JSON demandé : ${url}`, 800);
+      try {
+        const clean = analysisRaw.replace(/```json|```/g, "").trim();
+        setAnalysis(JSON.parse(clean));
+      } catch { setAnalysis(null); }
+
+      // Phase 2 : génération
+      setPhase("generating");
+      const code = await callClaude(SYSTEM,
+        `Génère le script Python Playwright complet pour scraper : ${url}`);
+      // Nettoyer éventuels backticks résiduels
+      const clean = code.replace(/^```python\n?|^```\n?|```$/gm, "").trim();
+      setScript(clean);
+      setPhase("done");
+      setActiveTab("script");
+    } catch (e) {
+      setError(e.message);
+      setPhase("error");
+    } finally { setLoading(false); }
+  }
+
+  async function copy() {
+    await navigator.clipboard.writeText(script);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  function download() {
+    const blob = new Blob([script], { type: "text/plain" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "scraper_output.py";
+    a.click();
+  }
+
+  const phaseInfo = {
+    idle:      { color: "#30363d", text: "" },
+    analyzing: { color: "#d29922", text: "🔍 Analyse de la page en cours..." },
+    generating:{ color: "#388bfd", text: "⚙️ Génération du script Python..." },
+    done:      { color: "#238636", text: "✅ Script prêt" },
+    error:     { color: "#f85149", text: "❌ Erreur" },
+  };
+  const pi = phaseInfo[phase];
+
+  return (
+    <div style={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace", background: "#0d1117", minHeight: "100vh", color: "#e6edf3" }}>
+      {/* Header */}
+      <div style={{ background: "#161b22", borderBottom: "1px solid #30363d", padding: "14px 24px", display: "flex", alignItems: "center", gap: 12 }}>
+        <span style={{ fontSize: 22 }}>🕷️</span>
+        <div>
+          <div style={{ color: "#58a6ff", fontWeight: "bold", fontSize: 16 }}>Scraper Builder</div>
+          <div style={{ color: "#8b949e", fontSize: 11 }}>Génère un script Python Playwright depuis n'importe quelle URL</div>
+        </div>
+      </div>
+
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
+        {/* URL Input */}
+        <div style={{ background: "#161b22", border: "1px solid #30363d", borderRadius: 10, padding: 20, marginBottom: 20 }}>
+          <label style={{ display: "block", color: "#8b949e", fontSize: 11, marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>URL cible</label>
+          <div style={{ display: "flex", gap: 10 }}>
+            <input
+              value={url}
+              onChange={e => setUrl(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && !loading && run()}
+              placeholder="https://example.com/catalogue/"
+              style={{
+                flex: 1, padding: "10px 14px",
+                background: "#0d1117", border: "1px solid #30363d",
+                borderRadius: 6, color: "#e6edf3", fontSize: 13, outline: "none",
+                transition: "border .2s"
+              }}
+              onFocus={e => e.target.style.borderColor = "#58a6ff"}
+              onBlur={e => e.target.style.borderColor = "#30363d"}
+            />
+            <button onClick={run} disabled={loading || !url.trim()}
+              style={{
+                padding: "10px 24px",
+                background: loading ? "#21262d" : "linear-gradient(135deg,#238636,#2ea043)",
+                border: "none", borderRadius: 6, color: "#fff",
+                cursor: loading ? "not-allowed" : "pointer",
+                fontSize: 13, fontWeight: "bold", minWidth: 120,
+                transition: "opacity .2s", opacity: loading ? 0.6 : 1
+              }}>
+              {loading ? "⏳ ..." : "▶ Générer"}
+            </button>
+          </div>
+
+          {/* Exemples */}
+          <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {[
+              "https://www.century21-farre-vouille-paris-15.com/annonces/achat/",
+              "https://www.leboncoin.fr/recherche?category=9",
+              "https://books.toscrape.com/"
+            ].map(ex => (
+              <button key={ex} onClick={() => setUrl(ex)}
+                style={{ padding: "3px 10px", background: "#21262d", border: "1px solid #30363d", borderRadius: 20, color: "#8b949e", cursor: "pointer", fontSize: 11 }}>
+                {ex.replace("https://","").split("/")[0]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Status bar */}
+        {phase !== "idle" && (
+          <div style={{
+            padding: "10px 16px", borderRadius: 8, marginBottom: 20,
+            background: "#161b22", border: `1px solid ${pi.color}`,
+            color: pi.color, fontSize: 13, display: "flex", alignItems: "center", gap: 10
+          }}>
+            {loading && <span style={{ display: "inline-block", animation: "spin 1s linear infinite" }}>⟳</span>}
+            {pi.text}
+            {error && <span style={{ color: "#f85149", marginLeft: 8 }}>{error}</span>}
+          </div>
+        )}
+
+        {/* Analysis card */}
+        {analysis && (
+          <div style={{ background: "#161b22", border: "1px solid #30363d", borderRadius: 10, padding: 20, marginBottom: 20 }}>
+            <div style={{ color: "#58a6ff", fontWeight: "bold", marginBottom: 14, fontSize: 13 }}>📊 Analyse détectée</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              {[
+                ["Site", analysis.site_name],
+                ["Type de page", analysis.page_type],
+                ["Pagination", analysis.has_pagination ? "✅ Oui" : "❌ Non"],
+                ["Pages détail", analysis.has_detail_pages ? "✅ Oui" : "❌ Non"],
+                ["Items estimés", analysis.estimated_items || "?"],
+              ].map(([k, v]) => (
+                <div key={k} style={{ background: "#0d1117", borderRadius: 6, padding: "10px 14px" }}>
+                  <div style={{ color: "#8b949e", fontSize: 10, marginBottom: 4, textTransform: "uppercase" }}>{k}</div>
+                  <div style={{ fontSize: 13 }}>{v}</div>
+                </div>
+              ))}
+            </div>
+            {analysis.detected_fields?.length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ color: "#8b949e", fontSize: 10, marginBottom: 8, textTransform: "uppercase" }}>Champs détectés</div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {analysis.detected_fields.map(f => (
+                    <span key={f} style={{ background: "#1f2937", border: "1px solid #374151", borderRadius: 20, padding: "2px 10px", fontSize: 11, color: "#93c5fd" }}>{f}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {analysis.tech_notes && (
+              <div style={{ marginTop: 12, padding: "8px 12px", background: "#1c2128", borderRadius: 6, fontSize: 11, color: "#d29922" }}>
+                ⚠️ {analysis.tech_notes}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Script output */}
+        {script && (
+          <div style={{ background: "#161b22", border: "1px solid #30363d", borderRadius: 10, overflow: "hidden" }}>
+            {/* Toolbar */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 16px", borderBottom: "1px solid #30363d", background: "#161b22" }}>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <div style={{ width: 12, height: 12, borderRadius: "50%", background: "#f85149" }} />
+                <div style={{ width: 12, height: 12, borderRadius: "50%", background: "#d29922" }} />
+                <div style={{ width: 12, height: 12, borderRadius: "50%", background: "#3fb950" }} />
+                <span style={{ marginLeft: 10, color: "#8b949e", fontSize: 12 }}>scraper_output.py</span>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={copy}
+                  style={{ padding: "5px 14px", background: copied ? "#238636" : "#21262d", border: "1px solid #30363d", borderRadius: 6, color: copied ? "#fff" : "#e6edf3", cursor: "pointer", fontSize: 12 }}>
+                  {copied ? "✓ Copié" : "📋 Copier"}
+                </button>
+                <button onClick={download}
+                  style={{ padding: "5px 14px", background: "#21262d", border: "1px solid #30363d", borderRadius: 6, color: "#e6edf3", cursor: "pointer", fontSize: 12 }}>
+                  ⬇ .py
+                </button>
+              </div>
+            </div>
+
+            {/* Code */}
+            <pre style={{
+              margin: 0, padding: 20,
+              background: "#0d1117",
+              fontSize: 12, lineHeight: 1.7,
+              overflowX: "auto", overflowY: "auto",
+              maxHeight: "55vh",
+              whiteSpace: "pre-wrap", wordBreak: "break-word"
+            }}>
+              {script.split("\n").map((line, i) => {
+                let color = "#e6edf3";
+                if (line.trim().startsWith("#")) color = "#8b949e";
+                else if (/^(import|from|async def|def|class|return|await|for|if|else|elif|try|except|with)\b/.test(line.trim())) color = "#ff7b72";
+                else if (/["']/.test(line)) color = "#a5d6ff";
+                return (
+                  <span key={i}>
+                    <span style={{ color: "#404040", userSelect: "none", marginRight: 16, minWidth: 30, display: "inline-block", textAlign: "right" }}>{i + 1}</span>
+                    <span style={{ color }}>{line}</span>
+                    {"\n"}
+                  </span>
+                );
+              })}
+            </pre>
+
+            {/* Footer */}
+            <div style={{ padding: "8px 16px", borderTop: "1px solid #30363d", background: "#161b22", display: "flex", justifyContent: "space-between", fontSize: 11, color: "#8b949e" }}>
+              <span>{script.split("\n").length} lignes</span>
+              <span>python3 scraper_output.py → scraper_output.json</span>
+            </div>
+          </div>
+        )}
+
+        {/* Instructions install */}
+        {phase === "done" && (
+          <div style={{ marginTop: 16, background: "#161b22", border: "1px solid #30363d", borderRadius: 10, padding: 16 }}>
+            <div style={{ color: "#58a6ff", fontSize: 12, marginBottom: 10 }}>🚀 Exécution sur le VPS</div>
+            {[
+              "pip install playwright",
+              "playwright install chromium",
+              "python3 scraper_output.py"
+            ].map((cmd, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                <span style={{ color: "#3fb950", fontSize: 11 }}>${" "}</span>
+                <code style={{ background: "#0d1117", padding: "4px 10px", borderRadius: 4, fontSize: 12, color: "#a5d6ff", flex: 1 }}>{cmd}</code>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <style>{`@keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} }`}</style>
+    </div>
+  );
+}

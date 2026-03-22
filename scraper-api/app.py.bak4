@@ -1,0 +1,159 @@
+import re, json, asyncio
+from flask import Flask, request, jsonify, make_response
+from flask_cors import CORS
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin, urlparse
+from playwright.async_api import async_playwright
+
+app = Flask(__name__)
+
+@app.route("/")
+def index():
+    with open("/workspace/scraper-api/scraper.html") as f:
+        return make_response(f.read(), 200, {"Content-Type": "text/html"})
+
+
+CORS(app)
+
+# ── Helpers ────────────────────────────────────────────────
+
+def parse_page(html, base_url):
+    soup = BeautifulSoup(html, "lxml")
+    for tag in soup(["script","style","noscript"]): tag.decompose()
+
+    title    = soup.title.string.strip() if soup.title else ""
+    meta     = soup.find("meta", attrs={"name":"description"})
+    meta_desc = meta["content"].strip() if meta and meta.get("content") else ""
+
+    links = []
+    for a in soup.find_all("a", href=True)[:200]:
+        try:
+            href = urljoin(base_url, a["href"])
+            if href.startswith("http"):
+                links.append({"text": a.get_text(strip=True)[:100], "href": href})
+        except: pass
+
+    images = []
+    for img in soup.find_all("img", src=True)[:100]:
+        try:
+            src = urljoin(base_url, img["src"])
+            images.append({"src": src, "alt": img.get("alt","")})
+        except: pass
+
+    headings = [{"level": h.name.upper(), "text": h.get_text(strip=True)[:300]}
+                for h in soup.find_all(["h1","h2","h3","h4","h5","h6"])
+                if h.get_text(strip=True)][:80]
+
+    paragraphs = [p.get_text(strip=True) for p in soup.find_all("p")
+                  if len(p.get_text(strip=True)) > 30][:50]
+
+    tables = []
+    for i, tbl in enumerate(soup.find_all("table")[:10]):
+        rows = [[td.get_text(strip=True) for td in tr.find_all(["th","td"])]
+                for tr in tbl.find_all("tr")]
+        rows = [r for r in rows if r]
+        if rows: tables.append({"index": i+1, "rows": rows[:30]})
+
+    text_body = soup.get_text(separator="\n")
+    emails    = list(set(re.findall(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", text_body)))[:30]
+    phones    = list(set(p for p in re.findall(
+        r"(?:\+\d{1,3}[\s\-]?)?\(?\d{2,4}\)?[\s\-]?\d{2,4}[\s\-]?\d{2,4}[\s\-]?\d{0,4}", text_body)
+        if len(re.sub(r"\D","",p)) >= 8))[:30]
+
+    return dict(title=title, metaDesc=meta_desc, links=links, images=images,
+                headings=headings, paragraphs=paragraphs, tables=tables,
+                emails=emails, phones=phones)
+
+
+def extract_selector(html, base_url, selector):
+    soup = BeautifulSoup(html, "lxml")
+    results = []
+    for el in soup.select(selector)[:100]:
+        results.append({
+            "tag":  el.name.upper(),
+            "text": el.get_text(strip=True)[:400],
+            "html": str(el)[:600],
+            "attrs": {k: str(v) for k,v in (el.attrs or {}).items()}
+        })
+    return results
+
+
+# ── Routes ─────────────────────────────────────────────────
+
+@app.route("/scrape", methods=["POST"])
+def scrape():
+    body     = request.json or {}
+    url      = body.get("url","").strip()
+    selector = body.get("selector","").strip()
+    js_wait  = body.get("js_wait", True)   # attendre JS si True
+    timeout  = int(body.get("timeout", 20000))
+
+    if not url.startswith("http"):
+        url = "https://" + url
+    if not url:
+        return jsonify({"error": "url manquante"}), 400
+
+    async def fetch():
+        async with async_playwright() as pw:
+            browser = await pw.chromium.launch(headless=True,
+                args=["--no-sandbox","--disable-setuid-sandbox",
+                      "--disable-blink-features=AutomationControlled"])
+            ctx = await browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                           "AppleWebKit/537.36 (KHTML, like Gecko) "
+                           "Chrome/124.0.0.0 Safari/537.36",
+                viewport={"width":1280,"height":800},
+                locale="fr-FR"
+            )
+            page = await ctx.new_page()
+            # masquer webdriver
+            await page.add_init_script("Object.defineProperty(navigator,'webdriver',{get:()=>undefined})")
+            try:
+                await page.goto(url, wait_until="domcontentloaded", timeout=timeout)
+                if js_wait:
+                    await page.wait_for_timeout(2500)  # laisser le JS s'exécuter
+            except Exception as e:
+                await browser.close()
+                return None, str(e)
+            html = await page.content()
+            screenshot = await page.screenshot(type="jpeg", quality=70, full_page=False)
+            await browser.close()
+            return html, screenshot
+
+    try:
+        html, screenshot = asyncio.run(fetch())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    if html is None:
+        return jsonify({"error": screenshot}), 500  # screenshot = message erreur ici
+
+    import base64
+    data = parse_page(html, url)
+    data["rawHtml"]     = html
+    data["screenshot"]  = "data:image/jpeg;base64," + base64.b64encode(screenshot).decode()
+
+    if selector:
+        data["selectorResult"] = extract_selector(html, url, selector)
+
+    return jsonify(data)
+
+
+@app.route("/selector", methods=["POST"])
+def selector_only():
+    body     = request.json or {}
+    html     = body.get("html","")
+    base_url = body.get("base_url","https://example.com")
+    selector = body.get("selector","")
+    if not selector:
+        return jsonify({"error": "selector manquant"}), 400
+    return jsonify({"results": extract_selector(html, base_url, selector)})
+
+
+@app.route("/health")
+def health():
+    return jsonify({"status":"ok","port": """ + str(PORT) + """})
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5055, debug=False)

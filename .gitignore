@@ -1,0 +1,38 @@
+# IGNORE HEAVY
+*.tar.gz
+*.zip
+backup*
+*.mp4
+*.onnx
+*.pth
+*.pt
+*.bin
+*.safetensors
+
+# CACHE
+.hf_home/
+.cache/
+
+# DATA
+outputs/
+uploads/
+streams/
+temp/
+
+# MODELS
+models/
+weights/
+
+# SUBMODULES DIRTY
+ComfyUI/
+DDColor/
+DeOldify/
+InfiniteTalk/
+LivePortrait/
+LongCat-Video/
+Wan2GP/
+chinese-wav2vec2-base/
+crossOS_acceleritor/
+generative-models/
+mmgp/
+wav2lip-onnx-HQ/
