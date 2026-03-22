@@ -36,3 +36,8 @@ crossOS_acceleritor/
 generative-models/
 mmgp/
 wav2lip-onnx-HQ/
+venv/
+scraper-api/venv/
+__pycache__/
+*.pyc
+node_modules/
